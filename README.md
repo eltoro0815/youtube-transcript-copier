@@ -5,7 +5,7 @@ Dieses Tampermonkey-Userscript fügt einen Button hinzu, mit dem du das komplett
 ## Installation
 
 1. Installiere die [Tampermonkey-Erweiterung](https://www.tampermonkey.net/) für deinen Browser
-2. Klicke auf diesen direkten Installationslink: [YouTube Transcript Copier Script](https://raw.githubusercontent.com/eltoro0815/youtube-transcript-copier/main/script.js)
+2. Klicke auf diesen direkten Installationslink: [YouTube Transcript Copier Script](https://raw.githubusercontent.com/eltoro0815/youtube-transcript-copier/main/youtube-transcript-copier.user.js)
 3. Klicke im Tampermonkey-Installationsdialog auf "Installieren"
 
 ## Funktionsweise
