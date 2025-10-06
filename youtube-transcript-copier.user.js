@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Transcript Copier
 // @namespace    http://tampermonkey.net/
-// @version      3.1.0
+// @version      3.2.0
 // @description  Copy YouTube video transcripts with timestamps
 // @author       You
 // @match        https://www.youtube.com/watch*
@@ -47,9 +47,9 @@
 
                 const copyButton = document.createElement('button');
                 copyButton.id = 'copy-transcript-button';
-                copyButton.textContent = '⭳';
+                copyButton.textContent = '⭳ Download';
                 copyButton.title = 'Transcript kopieren';
-                copyButton.style = 'margin-left: 8px; cursor: pointer; font-size: 16px; background: transparent; border: none;';
+                copyButton.style = 'margin-left: 8px; cursor: pointer; font-size: 16px; background: transparent; border: none; display: inline-flex; align-items: center; gap: 6px;';
 
                 // Neben die Überschrift setzen
                 headerEl.appendChild(copyButton);
