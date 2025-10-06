@@ -10,6 +10,6 @@ Dieses Tampermonkey-Userscript fügt einen Button hinzu, mit dem du das komplett
 
 ## Funktionsweise
 
-- Fügt einen "Copy Transcript"-Button unter dem YouTube-Video hinzu
-- Wartet automatisch, bis der "Transkript anzeigen"-Button sichtbar ist (auch nach Klick auf "Mehr...")
+- Fügt einen "⭳ Download"-Button in der Kopfzeile des Transkript-Panels ein (rechts neben der Überschrift "Transkript")
+- Wartet automatisch, bis das Transkript-Panel vorhanden ist (funktioniert auch bei YouTube SPA-Navigation)
 - Kopiert das gesamte Transkript mit Zeitstempeln in die Zwischenablage 
