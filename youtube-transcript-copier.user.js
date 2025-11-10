@@ -1,21 +1,20 @@
 // ==UserScript==
-// @name         YouTube Transcript Copier
+// @name         YouTube Transcript Copier (Fix 2025)
 // @namespace    http://tampermonkey.net/
-// @version      3.3.0
-// @description  Copy YouTube video transcripts with timestamps
-// @author       You
+// @version      3.4
+// @description  Kopiert YouTube Transkripte (funktioniert mit/ohne Kapitel)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
-// @license MIT
+// @license      MIT
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    console.log('Tampermonkey script loaded: YouTube Transcript Copier'); // Log when the script is loaded
+    console.log("YouTube Transcript Copier 3.4 loaded");
 
-    // Utility-Funktion, die auf das Erscheinen eines Elements wartet
-    function waitForElement(selector, timeout = 10000) {
+    // Wartet auf ein DOM-Element
+    function waitFor(selector, timeout = 15000) {
         return new Promise((resolve, reject) => {
             const el = document.querySelector(selector);
             if (el) return resolve(el);
@@ -32,49 +31,84 @@
 
             setTimeout(() => {
                 observer.disconnect();
-                reject(new Error('Element not found: ' + selector));
+                reject("Timeout waiting for: " + selector);
             }, timeout);
         });
     }
 
-    // Fügt den Copy-Button in die Kopfzeile des Transkript-Panels ein
-    function insertCopyButtonWhenReady() {
-        const transcriptHeaderSelector = 'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"] ytd-engagement-panel-title-header-renderer';
-        waitForElement(transcriptHeaderSelector, 20000)
-            .then((headerEl) => {
-                // Dedupe
-                if (document.getElementById('copy-transcript-button')) return;
+    // Sucht den sichtbaren Transkript-Header (für alle UI-Versionen)
+    function findVisibleTranscriptHeader() {
+        // Neues Layout: Transkript unter #secondary-inner
+        const newHeader = document.querySelector(
+            '#secondary-inner ytd-transcript-renderer h2'
+        );
+        if (newHeader && newHeader.offsetParent !== null) return newHeader;
 
-                const copyButton = document.createElement('button');
-                copyButton.id = 'copy-transcript-button';
-                copyButton.textContent = '⭳ Download';
-                copyButton.title = 'Transcript kopieren';
-                copyButton.style = 'margin-left: 8px; cursor: pointer; font-size: 16px; background: transparent; border: none; display: inline-flex; align-items: center; gap: 6px;';
+        // Altes Panel-Layout
+        const oldHeader = document.querySelector(
+            'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"] ytd-engagement-panel-title-header-renderer'
+        );
+        if (oldHeader && oldHeader.offsetParent !== null) return oldHeader;
 
-                // Neben die Überschrift setzen
-                headerEl.appendChild(copyButton);
-                console.log('Copy Transcript button inserted into transcript header.');
-
-                copyButton.addEventListener('click', function() {
-                    const transcriptPanel = document.querySelector('ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]');
-                    if (!transcriptPanel || transcriptPanel.innerText.trim() === '') {
-                        console.log('Transcript panel not ready yet.');
-                        return;
-                    }
-                    GM_setClipboard(transcriptPanel.innerText, 'text');
-                    console.log('Transcript copied to clipboard.');
-                    alert('Transcript copied to clipboard!');
-                });
-            })
-            .catch((err) => {
-                console.log('Transcript header did not appear:', err);
-            });
+        return null;
     }
 
-    // Beim Laden der Seite und bei SPA-Navigation die Einfügung versuchen
-    window.addEventListener('load', function() {
-        console.log('Page loaded. Attempting to insert Copy Transcript button...');
-        insertCopyButtonWhenReady();
+    async function insertButton() {
+        // Warten bis YouTube die Transkript-UI wirklich geladen hat
+        let headerEl = null;
+        for (let i = 0; i < 50; i++) {
+            headerEl = findVisibleTranscriptHeader();
+            if (headerEl) break;
+            await new Promise(r => setTimeout(r, 200));
+        }
+
+        if (!headerEl) {
+            console.log("Transcript header not found yet.");
+            return;
+        }
+
+        if (document.getElementById("copy-transcript-button")) return;
+
+        // Button bauen
+        const btn = document.createElement("button");
+        btn.id = "copy-transcript-button";
+        btn.textContent = "⭳ Download";
+        btn.title = "Transkript kopieren";
+        btn.style = `
+            margin-left: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            background: transparent;
+            border: none;
+            color: inherit;
+        `;
+
+        headerEl.appendChild(btn);
+        console.log("Transcript copy button inserted.");
+
+        btn.addEventListener("click", () => {
+            const panel =
+                document.querySelector("#secondary-inner ytd-transcript-renderer") ||
+                document.querySelector(
+                    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]'
+                );
+
+            if (!panel) return alert("Transkript nicht gefunden.");
+
+            const text = panel.innerText.trim();
+            GM_setClipboard(text, "text");
+            alert("Transkript kopiert!");
+        });
+    }
+
+    // Auf Änderungen reagieren (SPA Navigation)
+    window.addEventListener("yt-navigate-finish", () => {
+        setTimeout(insertButton, 500); // kurzes Delay damit Panels existieren
     });
-    window.addEventListener('yt-navigate-finish', insertCopyButtonWhenReady, { passive: true });
+
+    // Bei initialem Laden
+    window.addEventListener("load", () => {
+        setTimeout(insertButton, 500);
+    });
+
 })();
