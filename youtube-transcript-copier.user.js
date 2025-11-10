@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Transcript Copier
 // @namespace    http://tampermonkey.net/
-// @version      5.5
+// @version      5.6
 // @description  Copy YouTube transcripts (button inline right of header)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
@@ -11,7 +11,7 @@
 (function() {
     'use strict';
 
-    console.log('YouTube Transcript Copier v5.5 loaded');
+    console.log('YouTube Transcript Copier v5.6 loaded');
 
     // Finde den Transkript-Header über direkte Suche nach bekannten Labels
     function findTranscriptHeader() {
@@ -32,10 +32,7 @@
                 const isVisible = header.offsetParent !== null;
                 
                 if (isVisible) {
-                    console.log(`✅ Found visible header: ${header.getAttribute('aria-label')}`);
                     return header;
-                } else {
-                    console.log(`⏳ Found hidden header: ${header.getAttribute('aria-label')}, skipping...`);
                 }
             }
         }
@@ -47,13 +44,11 @@
         const header = findTranscriptHeader();
         
         if (!header) {
-            console.log('⏳ Transcript header not found yet');
             return false;
         }
 
         // Prevent duplicate
         if (document.getElementById('copy-transcript-button')) {
-            console.log('✅ Button already exists');
             return true;
         }
 
@@ -84,11 +79,6 @@
 
         header.appendChild(button);
         console.log('✅ Copy button inserted inline right of header');
-        console.log('Button element:', button);
-        console.log('Button parent:', button.parentElement);
-        console.log('Button offsetParent:', button.offsetParent);
-        console.log('Button computed style:', window.getComputedStyle(button).display);
-        console.log('Header computed style:', window.getComputedStyle(header).display);
 
         button.addEventListener('click', () => {
             // Suche nach dem Transkript-Panel (verschiedene mögliche Selektoren)
@@ -115,7 +105,6 @@
 
     function waitAndInsertButton() {
         if (insertCopyButton()) {
-            console.log('✅ Button inserted on first try');
             return;
         }
 
@@ -124,13 +113,9 @@
             return;
         }
 
-        console.log('⏳ Waiting for transcript header to appear...');
-
         globalObserver = new MutationObserver(() => {
-            if (insertCopyButton()) {
-                console.log('✅ Button inserted via MutationObserver');
-                // Observer NICHT disconnecten, damit er auch auf spätere Öffnungen reagiert
-            }
+            insertCopyButton();
+            // Observer NICHT disconnecten, damit er auch auf spätere Öffnungen reagiert
         });
 
         globalObserver.observe(document.body, {
@@ -139,13 +124,6 @@
             attributes: true,
             attributeFilter: ['aria-label', 'hidden', 'style'] // Beobachte relevante Attribute
         });
-
-        // Optional: Timeout nach 60 Sekunden (nur als Warnung, Observer läuft weiter)
-        setTimeout(() => {
-            if (globalObserver) {
-                console.log('⏱️ Still waiting for transcript header (Observer continues running)...');
-            }
-        }, 60000);
     }
 
     // Initial load
