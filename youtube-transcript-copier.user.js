@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Transcript Copier
 // @namespace    http://tampermonkey.net/
-// @version      5.2
+// @version      5.3
 // @description  Copy YouTube transcripts (button inline right of header)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
@@ -11,7 +11,7 @@
 (function() {
     'use strict';
 
-    console.log('YouTube Transcript Copier v5.2 loaded');
+    console.log('YouTube Transcript Copier v5.3 loaded');
 
     // Finde den Transkript-Header über direkte Suche nach bekannten Labels
     function findTranscriptHeader() {
@@ -51,7 +51,10 @@
         }
 
         // Make header inline-flex to allow button right of text
-        header.style.display = 'inline-flex';
+        // Wichtig: Nur ändern, wenn noch nicht gesetzt, um Konflikte zu vermeiden
+        if (!header.style.display || header.style.display === '') {
+            header.style.display = 'inline-flex';
+        }
         header.style.alignItems = 'center';
         header.style.gap = '8px';
 
@@ -67,10 +70,18 @@
             color: var(--yt-spec-text-primary);
             display: inline-flex;
             align-items: center;
+            margin-left: 8px;
+            padding: 0;
+            line-height: 1;
         `;
 
         header.appendChild(button);
         console.log('✅ Copy button inserted inline right of header');
+        console.log('Button element:', button);
+        console.log('Button parent:', button.parentElement);
+        console.log('Button offsetParent:', button.offsetParent);
+        console.log('Button computed style:', window.getComputedStyle(button).display);
+        console.log('Header computed style:', window.getComputedStyle(header).display);
 
         button.addEventListener('click', () => {
             // Suche nach dem Transkript-Panel (verschiedene mögliche Selektoren)
