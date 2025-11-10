@@ -1,104 +1,93 @@
 // ==UserScript==
-// @name         YouTube Transcript Copier (Fix 2025, v3.5)
+// @name         YouTube Transcript Copier (Stable v3.7)
 // @namespace    http://tampermonkey.net/
-// @version      3.5
-// @description  Kopiert YouTube-Transkripte zuverlässig, egal ob Kapitel vorhanden sind oder nicht
+// @version      3.7
+// @description  Copy YouTube transcripts with timestamps
+// @author       You
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
-// @license      MIT
+// @license MIT
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    console.log("[YT-Transcript-Copier] Script loaded (v3.5)");
+    console.log('YouTube Transcript Copier v3.7 loaded');
 
-    // Findet den sichtbaren Transcript-Header in allen YouTube-Layouts
-    function findTranscriptHeader() {
-        // 1. Neues Layout: Kapitel + Transkript → Header liegt unter #secondary-inner
-        const newHeader = document.querySelector(
-            "#secondary-inner ytd-transcript-renderer h2"
-        );
-        if (newHeader && newHeader.offsetParent !== null) {
-            return newHeader;
-        }
+    // Wait for any selector
+    function waitForElement(selector, timeout = 20000) {
+        return new Promise((resolve, reject) => {
+            const existing = document.querySelector(selector);
+            if (existing) return resolve(existing);
 
-        // 2. Klassisches Layout: nur Transkript → Header ist h2#title im Engagement-Panel
-        const classicHeader = document.querySelector(
-            'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"] h2#title'
-        );
-        if (classicHeader && classicHeader.offsetParent !== null) {
-            return classicHeader;
-        }
+            const observer = new MutationObserver(() => {
+                const el = document.querySelector(selector);
+                if (el) {
+                    observer.disconnect();
+                    resolve(el);
+                }
+            });
 
-        return null;
-    }
+            observer.observe(document.body, { childList: true, subtree: true });
 
-    // Warten auf sichtbaren Header
-    async function waitForHeader() {
-        for (let i = 0; i < 50; i++) {  // 50 × 200 ms = 10 Sekunden
-            const header = findTranscriptHeader();
-            if (header) return header;
-            await new Promise(r => setTimeout(r, 200));
-        }
-        return null;
-    }
-
-    async function insertButton() {
-        const headerEl = await waitForHeader();
-        if (!headerEl) {
-            console.log("[YT-Transcript-Copier] Kein sichtbarer Transkript-Header gefunden.");
-            return;
-        }
-
-        // Kein Duplicate
-        if (document.getElementById("copy-transcript-button")) return;
-
-        // Button bauen
-        const btn = document.createElement("button");
-        btn.id = "copy-transcript-button";
-        btn.textContent = "⭳ Download";
-        btn.title = "Transkript kopieren";
-        btn.style = `
-            margin-left: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            background: transparent;
-            border: none;
-            color: inherit;
-        `;
-
-        // Button einfügen
-        headerEl.appendChild(btn);
-        console.log("[YT-Transcript-Copier] Button eingefügt.");
-
-        // Klick-Aktion
-        btn.addEventListener("click", () => {
-            const transcriptPanel =
-                document.querySelector("#secondary-inner ytd-transcript-renderer") ||
-                document.querySelector(
-                    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]'
-                );
-
-            if (!transcriptPanel) {
-                alert("Transkript nicht gefunden!");
-                return;
-            }
-
-            const text = transcriptPanel.innerText.trim();
-            GM_setClipboard(text, "text");
-            alert("Transkript kopiert!");
+            setTimeout(() => {
+                observer.disconnect();
+                reject(new Error('Element not found: ' + selector));
+            }, timeout);
         });
     }
 
-    // Reagiert auf YouTube SPA Navigation
-    window.addEventListener("yt-navigate-finish", () => {
-        setTimeout(insertButton, 500);
-    });
+    // Find TRUE transcript header (works in all layouts)
+    function findTranscriptHeader() {
+        return document.querySelector('h2#title[aria-label="Transkript"]');
+    }
 
-    // Initiales Laden
-    window.addEventListener("load", () => {
-        setTimeout(insertButton, 500);
-    });
+    function insertCopyButton() {
+        const header = findTranscriptHeader();
+        if (!header) return;
 
+        // dedupe
+        if (document.getElementById('copy-transcript-button')) return;
+
+        const button = document.createElement('button');
+        button.id = 'copy-transcript-button';
+        button.textContent = '⭳ Download';
+        button.title = 'Transkript kopieren';
+        button.style = `
+            margin-left: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            background: transparent;
+            border: none;
+            color: var(--yt-spec-text-primary);
+        `;
+
+        header.appendChild(button);
+        console.log("✅ Copy button inserted at transcript header");
+
+        button.addEventListener('click', () => {
+            const transcriptPanel = document.querySelector(
+                'ytd-transcript-renderer, ' +
+                'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]'
+            );
+
+            if (!transcriptPanel || transcriptPanel.innerText.trim() === '') {
+                alert('Transkript ist noch nicht geladen.');
+                return;
+            }
+
+            GM_setClipboard(transcriptPanel.innerText, 'text');
+            alert('Transkript kopiert!');
+        });
+    }
+
+    // Try inserting after page load & SPA navigation
+    function tryInsert() {
+        waitForElement('h2#title[aria-label="Transkript"]', 15000)
+            .then(() => insertCopyButton())
+            .catch(() => console.log("Transcript header not found yet"));
+    }
+
+    window.addEventListener('load', tryInsert);
+    window.addEventListener('yt-navigate-finish', tryInsert, { passive: true });
 })();
