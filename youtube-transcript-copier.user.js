@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Transcript Copier
 // @namespace    http://tampermonkey.net/
-// @version      4.9
+// @version      5.0
 // @description  Copy YouTube transcripts (button inline right of header)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
@@ -11,7 +11,7 @@
 (function() {
     'use strict';
 
-    console.log('YouTube Transcript Copier v4.9 loaded');
+    console.log('YouTube Transcript Copier v5.0 loaded');
 
     // Robuste Strategie: Finde das Transkript-Panel und dann den zugehörigen Header
     function findTranscriptHeader() {
@@ -22,29 +22,45 @@
         );
         
         if (transcriptPanel) {
-            // Finde den Header relativ zum Panel
-            const headerRenderer = transcriptPanel.closest('ytd-engagement-panel-section-list-renderer')
-                ?.querySelector('ytd-engagement-panel-title-header-renderer');
+            // Fall 1: Panel ist selbst ein ytd-engagement-panel-section-list-renderer
+            let headerRenderer = null;
+            if (transcriptPanel.matches('ytd-engagement-panel-section-list-renderer')) {
+                headerRenderer = transcriptPanel.querySelector('ytd-engagement-panel-title-header-renderer');
+            } else {
+                // Fall 2: Panel ist innerhalb eines ytd-engagement-panel-section-list-renderer
+                headerRenderer = transcriptPanel.closest('ytd-engagement-panel-section-list-renderer')
+                    ?.querySelector('ytd-engagement-panel-title-header-renderer');
+            }
             
             if (headerRenderer) {
                 // Suche nach h2#title im Header
                 const h2 = headerRenderer.querySelector('h2#title');
-                if (h2 && h2.offsetParent !== null) return h2;
+                if (h2) {
+                    // Prüfe Sichtbarkeit - wenn nicht sichtbar, versuche trotzdem (kann später sichtbar werden)
+                    if (h2.offsetParent !== null || h2.getAttribute('aria-label')) {
+                        return h2;
+                    }
+                }
             }
         }
 
         // Strategie 2: Direkte Suche nach bekannten Header-Labels (DE + EN)
+        // Priorität: "Transkript" zuerst, da das der häufigste Fall ist
         const headerSelectors = [
-            'h2#title[aria-label="In diesem Video"]',  // DE: Kapitel + Transkript
-            'h2#title[aria-label="Transkript"]',      // DE: Nur Transkript
-            'h2#title[aria-label="In this video"]',    // EN: Chapters + Transcript
+            'h2#title[aria-label="Transkript"]',      // DE: Nur Transkript (häufigster Fall)
             'h2#title[aria-label="Transcript"]',       // EN: Only Transcript
+            'h2#title[aria-label="In diesem Video"]',  // DE: Kapitel + Transkript
+            'h2#title[aria-label="In this video"]',    // EN: Chapters + Transcript
         ];
 
         for (const selector of headerSelectors) {
             const header = document.querySelector(selector);
-            if (header && header.offsetParent !== null) {
-                return header;
+            if (header) {
+                // Wenn nicht sichtbar, aber aria-label passt, verwende es trotzdem
+                // (kann später sichtbar werden oder ist in einem versteckten Panel)
+                if (header.offsetParent !== null || header.getAttribute('aria-label')) {
+                    return header;
+                }
             }
         }
 
@@ -54,8 +70,6 @@
         );
         
         for (const header of allHeaders) {
-            if (header.offsetParent === null) continue;
-            
             const titleText = header.querySelector('yt-formatted-string#title-text')?.textContent?.toLowerCase() || '';
             const ariaLabel = header.getAttribute('aria-label')?.toLowerCase() || '';
             
@@ -63,7 +77,10 @@
             if (titleText.includes('transkript') || titleText.includes('transcript') ||
                 ariaLabel.includes('transkript') || ariaLabel.includes('transcript') ||
                 titleText.includes('in diesem video') || titleText.includes('in this video')) {
-                return header;
+                // Wenn sichtbar oder aria-label passt, verwende es
+                if (header.offsetParent !== null || ariaLabel) {
+                    return header;
+                }
             }
         }
 
@@ -127,21 +144,32 @@
 
     // Warte auf Elemente mit MutationObserver für robuste Erkennung
     function waitAndInsertButton() {
-        if (insertCopyButton()) return;
+        if (insertCopyButton()) {
+            console.log('✅ Button inserted on first try');
+            return;
+        }
+
+        console.log('⏳ Waiting for transcript header to appear...');
 
         const observer = new MutationObserver(() => {
             if (insertCopyButton()) {
+                console.log('✅ Button inserted via MutationObserver');
                 observer.disconnect();
             }
         });
 
         observer.observe(document.body, {
             childList: true,
-            subtree: true
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['aria-label', 'hidden'] // Beobachte relevante Attribute
         });
 
         // Timeout nach 15 Sekunden
-        setTimeout(() => observer.disconnect(), 15000);
+        setTimeout(() => {
+            observer.disconnect();
+            console.log('⏱️ Timeout: Stopped waiting for transcript header');
+        }, 15000);
     }
 
     // Initial load
