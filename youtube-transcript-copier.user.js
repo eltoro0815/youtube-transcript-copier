@@ -1,9 +1,8 @@
 // ==UserScript==
-// @name         YouTube Transcript Copier (Stable v3.7)
+// @name         YouTube Transcript Copier v3.8
 // @namespace    http://tampermonkey.net/
-// @version      3.7
-// @description  Copy YouTube transcripts with timestamps
-// @author       You
+// @version      3.8
+// @description  Copy YouTube transcripts reliably (works with/without chapters)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
 // @license MIT
@@ -12,48 +11,30 @@
 (function() {
     'use strict';
 
-    console.log('YouTube Transcript Copier v3.7 loaded');
+    console.log('YouTube Transcript Copier v3.8 loaded');
 
-    // Wait for any selector
-    function waitForElement(selector, timeout = 20000) {
-        return new Promise((resolve, reject) => {
-            const existing = document.querySelector(selector);
-            if (existing) return resolve(existing);
-
-            const observer = new MutationObserver(() => {
-                const el = document.querySelector(selector);
-                if (el) {
-                    observer.disconnect();
-                    resolve(el);
-                }
-            });
-
-            observer.observe(document.body, { childList: true, subtree: true });
-
-            setTimeout(() => {
-                observer.disconnect();
-                reject(new Error('Element not found: ' + selector));
-            }, timeout);
-        });
+    // Find the common "In diesem Video" header
+    function findVideoHeader() {
+        return document.querySelector('h2#title[aria-label="In diesem Video"]');
     }
 
-    // Find TRUE transcript header (works in all layouts)
-    function findTranscriptHeader() {
-        return document.querySelector('h2#title[aria-label="Transkript"]');
-    }
+    async function insertCopyButton() {
+        let headerEl = null;
+        for (let i = 0; i < 50; i++) { // max 10s wait
+            headerEl = findVideoHeader();
+            if (headerEl && headerEl.offsetParent !== null) break;
+            await new Promise(r => setTimeout(r, 200));
+        }
+        if (!headerEl) return;
 
-    function insertCopyButton() {
-        const header = findTranscriptHeader();
-        if (!header) return;
-
-        // dedupe
+        // Prevent duplicate
         if (document.getElementById('copy-transcript-button')) return;
 
-        const button = document.createElement('button');
-        button.id = 'copy-transcript-button';
-        button.textContent = '⭳ Download';
-        button.title = 'Transkript kopieren';
-        button.style = `
+        const btn = document.createElement('button');
+        btn.id = 'copy-transcript-button';
+        btn.textContent = '⭳ Download';
+        btn.title = 'Transkript kopieren';
+        btn.style = `
             margin-left: 10px;
             cursor: pointer;
             font-size: 14px;
@@ -61,33 +42,32 @@
             border: none;
             color: var(--yt-spec-text-primary);
         `;
+        headerEl.appendChild(btn);
+        console.log('✅ Copy button inserted under "In diesem Video"');
 
-        header.appendChild(button);
-        console.log("✅ Copy button inserted at transcript header");
-
-        button.addEventListener('click', () => {
-            const transcriptPanel = document.querySelector(
-                'ytd-transcript-renderer, ' +
-                'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]'
-            );
+        btn.addEventListener('click', () => {
+            // Find the transcript panel under the video container
+            const transcriptPanel =
+                headerEl.closest('ytd-watch-flexy')
+                        .querySelector('ytd-transcript-renderer') ||
+                document.querySelector(
+                    'ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]'
+                );
 
             if (!transcriptPanel || transcriptPanel.innerText.trim() === '') {
                 alert('Transkript ist noch nicht geladen.');
                 return;
             }
 
-            GM_setClipboard(transcriptPanel.innerText, 'text');
+            GM_setClipboard(transcriptPanel.innerText.trim(), 'text');
             alert('Transkript kopiert!');
         });
     }
 
-    // Try inserting after page load & SPA navigation
-    function tryInsert() {
-        waitForElement('h2#title[aria-label="Transkript"]', 15000)
-            .then(() => insertCopyButton())
-            .catch(() => console.log("Transcript header not found yet"));
-    }
+    // Initial load
+    window.addEventListener('load', () => setTimeout(insertCopyButton, 500));
 
-    window.addEventListener('load', tryInsert);
-    window.addEventListener('yt-navigate-finish', tryInsert, { passive: true });
+    // SPA navigation
+    window.addEventListener('yt-navigate-finish', () => setTimeout(insertCopyButton, 500));
+
 })();
