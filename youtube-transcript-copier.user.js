@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         YouTube Transcript Copier v4.0
+// @name         YouTube Transcript Copier v4.3
 // @namespace    http://tampermonkey.net/
-// @version      4.0
-// @description  Copy YouTube transcripts reliably (supports chapters and plain transcript)
+// @version      4.3
+// @description  Copy YouTube transcripts reliably (single container logic)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
 // @license MIT
@@ -11,35 +11,26 @@
 (function() {
     'use strict';
 
-    console.log('YouTube Transcript Copier v4.0 loaded');
+    console.log('YouTube Transcript Copier v4.3 loaded');
 
-    // Find the container where the button should be inserted
+    // Find the container to insert the button
     function findButtonContainer() {
-        // Layout 1: only transcript → #secondary-inner exists
-        const secondaryInner = document.querySelector('#secondary-inner');
-        if (secondaryInner) return secondaryInner;
-
-        // Layout 2: chapters + transcript → header "In diesem Video"
+        // Case 1: Chapters + Transcript
         const videoHeader = document.querySelector('h2#title[aria-label="In diesem Video"]');
         if (videoHeader) return videoHeader;
 
-        return null;
-    }
+        // Case 2: Only Transcript
+        const transcriptHeader = document.querySelector('h2#title[aria-label="Transkript"]');
+        if (transcriptHeader) return transcriptHeader;
 
-    // Find the actual transcript panel
-    function findTranscriptPanel() {
-        return (
-            document.querySelector('#secondary-inner ytd-transcript-renderer') ||
-            document.querySelector('ytd-transcript-renderer') ||
-            document.querySelector('ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]')
-        );
+        return null;
     }
 
     async function insertCopyButton() {
         let container = null;
         for (let i = 0; i < 50; i++) { // wait max 10s
             container = findButtonContainer();
-            if (container) break;
+            if (container && container.offsetParent !== null) break;
             await new Promise(r => setTimeout(r, 200));
         }
         if (!container) return;
@@ -64,12 +55,16 @@
         console.log('✅ Copy button inserted');
 
         button.addEventListener('click', () => {
-            const transcriptPanel = findTranscriptPanel();
-            if (!transcriptPanel || transcriptPanel.innerText.trim() === '') {
+            const transcriptText = container.closest('ytd-watch-flexy')
+                .querySelector('ytd-transcript-renderer, ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]')
+                ?.innerText.trim();
+
+            if (!transcriptText) {
                 alert('Transkript ist noch nicht geladen.');
                 return;
             }
-            GM_setClipboard(transcriptPanel.innerText.trim(), 'text');
+
+            GM_setClipboard(transcriptText, 'text');
             alert('Transkript kopiert!');
         });
     }
