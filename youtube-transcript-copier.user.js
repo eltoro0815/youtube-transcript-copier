@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Transcript Copier
 // @namespace    http://tampermonkey.net/
-// @version      5.4
+// @version      5.5
 // @description  Copy YouTube transcripts (button inline right of header)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
@@ -11,7 +11,7 @@
 (function() {
     'use strict';
 
-    console.log('YouTube Transcript Copier v5.4 loaded');
+    console.log('YouTube Transcript Copier v5.5 loaded');
 
     // Finde den Transkript-Header über direkte Suche nach bekannten Labels
     function findTranscriptHeader() {
@@ -110,33 +110,42 @@
     }
 
     // Warte auf Elemente mit MutationObserver für robuste Erkennung
+    // Der Observer läuft dauerhaft, um auch auf späte Panel-Öffnungen zu reagieren
+    let globalObserver = null;
+
     function waitAndInsertButton() {
         if (insertCopyButton()) {
             console.log('✅ Button inserted on first try');
             return;
         }
 
+        // Wenn bereits ein Observer läuft, nicht erneut starten
+        if (globalObserver) {
+            return;
+        }
+
         console.log('⏳ Waiting for transcript header to appear...');
 
-        const observer = new MutationObserver(() => {
+        globalObserver = new MutationObserver(() => {
             if (insertCopyButton()) {
                 console.log('✅ Button inserted via MutationObserver');
-                observer.disconnect();
+                // Observer NICHT disconnecten, damit er auch auf spätere Öffnungen reagiert
             }
         });
 
-        observer.observe(document.body, {
+        globalObserver.observe(document.body, {
             childList: true,
             subtree: true,
             attributes: true,
-            attributeFilter: ['aria-label', 'hidden'] // Beobachte relevante Attribute
+            attributeFilter: ['aria-label', 'hidden', 'style'] // Beobachte relevante Attribute
         });
 
-        // Timeout nach 15 Sekunden
+        // Optional: Timeout nach 60 Sekunden (nur als Warnung, Observer läuft weiter)
         setTimeout(() => {
-            observer.disconnect();
-            console.log('⏱️ Timeout: Stopped waiting for transcript header');
-        }, 15000);
+            if (globalObserver) {
+                console.log('⏱️ Still waiting for transcript header (Observer continues running)...');
+            }
+        }, 60000);
     }
 
     // Initial load
@@ -144,8 +153,13 @@
         setTimeout(waitAndInsertButton, 500);
     });
 
-    // SPA navigation
+    // SPA navigation - bei Navigation den Button erneut versuchen
     window.addEventListener('yt-navigate-finish', () => {
+        // Entferne existierenden Button, falls vorhanden (für neues Video)
+        const existingButton = document.getElementById('copy-transcript-button');
+        if (existingButton) {
+            existingButton.remove();
+        }
         setTimeout(waitAndInsertButton, 500);
     });
 
