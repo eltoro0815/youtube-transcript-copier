@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Transcript Copier
 // @namespace    http://tampermonkey.net/
-// @version      5.3
+// @version      5.4
 // @description  Copy YouTube transcripts (button inline right of header)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
@@ -11,24 +11,31 @@
 (function() {
     'use strict';
 
-    console.log('YouTube Transcript Copier v5.3 loaded');
+    console.log('YouTube Transcript Copier v5.4 loaded');
 
     // Finde den Transkript-Header über direkte Suche nach bekannten Labels
     function findTranscriptHeader() {
+        // Priorität: Zuerst nach "In diesem Video" suchen (Kapitel + Transkript)
+        // Dann nach "Transkript" (nur Transkript)
         const headerSelectors = [
+            'h2#title[aria-label="In diesem Video"]',  // DE: Kapitel + Transkript (höchste Priorität)
+            'h2#title[aria-label="In this video"]',    // EN: Chapters + Transcript
             'h2#title[aria-label="Transkript"]',      // DE: Nur Transkript
             'h2#title[aria-label="Transcript"]',       // EN: Only Transcript
-            'h2#title[aria-label="In diesem Video"]',  // DE: Kapitel + Transkript
-            'h2#title[aria-label="In this video"]',    // EN: Chapters + Transcript
         ];
 
         for (const selector of headerSelectors) {
             const header = document.querySelector(selector);
             if (header) {
-                // Wenn nicht sichtbar, aber aria-label passt, verwende es trotzdem
-                // (kann später sichtbar werden oder ist in einem versteckten Panel)
-                if (header.offsetParent !== null || header.getAttribute('aria-label')) {
+                // WICHTIG: Nur sichtbare Header verwenden
+                // Prüfe sowohl offsetParent als auch ob das Element im Viewport ist
+                const isVisible = header.offsetParent !== null;
+                
+                if (isVisible) {
+                    console.log(`✅ Found visible header: ${header.getAttribute('aria-label')}`);
                     return header;
+                } else {
+                    console.log(`⏳ Found hidden header: ${header.getAttribute('aria-label')}, skipping...`);
                 }
             }
         }
