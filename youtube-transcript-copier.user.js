@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         YouTube Transcript Copier v4.6
+// @name         YouTube Transcript Copier v4.8
 // @namespace    http://tampermonkey.net/
-// @version      4.6
-// @description  Copy YouTube transcripts reliably (button as sibling element)
+// @version      4.8
+// @description  Copy YouTube transcripts (button inline right of header)
 // @match        https://www.youtube.com/watch*
 // @grant        GM_setClipboard
 // @license MIT
@@ -11,15 +11,15 @@
 (function() {
     'use strict';
 
-    console.log('YouTube Transcript Copier v4.6 loaded');
+    console.log('YouTube Transcript Copier v4.8 loaded');
 
-    // Find the container to insert the button
+    // Find the header to attach the button
     function findButtonContainer() {
-        // Case 1: Chapters + Transcript → "In diesem Video" header
+        // Case 1: Chapters + Transcript → "In diesem Video"
         const videoHeader = document.querySelector('h2#title[aria-label="In diesem Video"]');
         if (videoHeader) return videoHeader;
 
-        // Case 2: Only Transcript → header "Transkript"
+        // Case 2: Only Transcript → "Transkript"
         const transcriptHeader = document.querySelector('h2#title[aria-label="Transkript"]');
         if (transcriptHeader) return transcriptHeader;
 
@@ -28,7 +28,7 @@
 
     async function insertCopyButton() {
         let header = null;
-        for (let i = 0; i < 50; i++) { // max 10s wait
+        for (let i = 0; i < 50; i++) { // wait max 10s
             header = findButtonContainer();
             if (header && header.offsetParent !== null) break;
             await new Promise(r => setTimeout(r, 200));
@@ -38,12 +38,16 @@
         // Prevent duplicate
         if (document.getElementById('copy-transcript-button')) return;
 
+        // Make header inline-flex to allow button right of text
+        header.style.display = 'inline-flex';
+        header.style.alignItems = 'center';
+        header.style.gap = '8px'; // optional spacing
+
         const button = document.createElement('button');
         button.id = 'copy-transcript-button';
         button.textContent = '⭳ Download';
         button.title = 'Transkript kopieren';
-        button.style = `
-            margin-left: 8px;   /* Abstand rechts */
+        button.style.cssText = `
             font-size: 14px;
             cursor: pointer;
             background: transparent;
@@ -53,13 +57,10 @@
             align-items: center;
         `;
 
-        // Insert as sibling right after the header
-        header.insertAdjacentElement('afterend', button);
-
-        console.log('✅ Copy button inserted as sibling');
+        header.appendChild(button);
+        console.log('✅ Copy button inserted inline right of header');
 
         button.addEventListener('click', () => {
-            // Find the transcript panel inside the closest container
             const transcriptPanel = header.closest('ytd-watch-flexy')
                 .querySelector('ytd-transcript-renderer, ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-searchable-transcript"]');
 
